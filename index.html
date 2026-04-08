@@ -62,6 +62,18 @@ src="https://www.facebook.com/tr?id=1663477297615180&ev=PageView&noscript=1"
       return base + '?' + finalQuery;
     }
 
+    // Camada 1: click listener — modifica href in-place antes da navegação nativa
+    // Não usa preventDefault, deixa o <a> navegar normalmente com o href corrigido
+    document.addEventListener('click', function(e) {
+      var a = e.target.closest ? e.target.closest('a[href]') : null;
+      if (!a) return;
+      var href = a.href || a.getAttribute('href');
+      if (typeof href === 'string' && href.indexOf('pay.hotmart.com') !== -1) {
+        a.href = transformUrl(href);
+      }
+    }, true);
+
+    // Camada 2: monkey-patch window.open (fallback para open_in_new_tab)
     var _originalOpen = window.open;
     window.open = function(url, target, features) {
       if (typeof url === 'string' && url.indexOf('pay.hotmart.com') !== -1) {
@@ -73,7 +85,7 @@ src="https://www.facebook.com/tr?id=1663477297615180&ev=PageView&noscript=1"
   </script>
   <!-- VTurb Player Optimizer -->
   <script>!function(i,n){i._plt=i._plt||(n&&n.timeOrigin?n.timeOrigin+n.now():Date.now())}(window,performance);</script>
-  <link rel="preload" href="https://scripts.converteai.net/ac3c2b1e-9bec-4b10-8bf2-0e8eb21a9d35/ab-test/69d3ef6b8a800605e3888512/player.js" as="script">
+  <link rel="preload" href="https://scripts.converteai.net/ac3c2b1e-9bec-4b10-8bf2-0e8eb21a9d35/ab-test/69d13dc5af74a42cad39d7d4/player.js" as="script">
   <link rel="preload" href="https://scripts.converteai.net/lib/js/smartplayer-wc/v4/smartplayer.js" as="script">
   <link rel="dns-prefetch" href="https://cdn.converteai.net">
   <link rel="dns-prefetch" href="https://scripts.converteai.net">
@@ -235,7 +247,7 @@ src="https://www.facebook.com/tr?id=1663477297615180&ev=PageView&noscript=1"
   <!-- MAIN -->
   <main>
     <div class="video-wrapper">
-      <vturb-smartplayer id="ab-69d3ef6b8a800605e3888512" style="display: block; margin: 0 auto; width: 100%; "></vturb-smartplayer> <script type="text/javascript"> var s=document.createElement("script"); s.src="https://scripts.converteai.net/ac3c2b1e-9bec-4b10-8bf2-0e8eb21a9d35/ab-test/69d3ef6b8a800605e3888512/player.js", s.async=!0,document.head.appendChild(s); </script>
+      <vturb-smartplayer id="ab-69d13dc5af74a42cad39d7d4" style="display: block; margin: 0 auto; width: 100%; "></vturb-smartplayer> <script type="text/javascript"> var s=document.createElement("script"); s.src="https://scripts.converteai.net/ac3c2b1e-9bec-4b10-8bf2-0e8eb21a9d35/ab-test/69d13dc5af74a42cad39d7d4/player.js", s.async=!0,document.head.appendChild(s); </script>
     </div>
   </main>
 
