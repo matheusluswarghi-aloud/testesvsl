@@ -18,7 +18,7 @@ fbq('track', 'PageView');
 src="https://www.facebook.com/tr?id=1663477297615180&ev=PageView&noscript=1"
 /></noscript>
 <!-- End Meta Pixel Code -->
-  <!-- UTM → SCK Interceptor v4: MutationObserver reativo -->
+  <!-- UTM → SCK Interceptor v4.1: click takeover no <head> -->
   <script>
   (function() {
     var params = new URLSearchParams(window.location.search);
@@ -62,74 +62,40 @@ src="https://www.facebook.com/tr?id=1663477297615180&ev=PageView&noscript=1"
       return base + '?' + finalQuery;
     }
 
-    function needsTransform(href) {
-      return typeof href === 'string'
-        && href.indexOf('pay.hotmart.com') !== -1
-        && (href.indexOf('sck=') === -1 || href.indexOf('utm_source=') !== -1);
+    function isHotmart(url) {
+      return typeof url === 'string' && url.indexOf('pay.hotmart.com') !== -1;
     }
 
-    // CAMADA 1: MutationObserver — reescreve href toda vez que o Vturb o modifica
-    var rewriting = false;
-    var hrefObserver = new MutationObserver(function(mutations) {
-      if (rewriting) return;
-      mutations.forEach(function(m) {
-        if (m.type === 'attributes' && m.attributeName === 'href') {
-          var a = m.target;
-          var href = a.getAttribute('href');
-          if (needsTransform(href)) {
-            rewriting = true;
-            a.setAttribute('href', transformUrl(href));
-            rewriting = false;
-          }
-        }
-      });
-    });
-
-    // Observa todo o document para pegar <a> criados dinamicamente pelo Vturb
-    var docObserver = new MutationObserver(function(mutations) {
-      mutations.forEach(function(m) {
-        m.addedNodes.forEach(function(node) {
-          if (node.nodeType !== 1) return;
-          var links = [];
-          if (node.tagName === 'A') links.push(node);
-          if (node.querySelectorAll) {
-            var found = node.querySelectorAll('a[href]');
-            for (var i = 0; i < found.length; i++) links.push(found[i]);
-          }
-          links.forEach(function(a) {
-            var href = a.getAttribute('href');
-            if (href && href.indexOf('pay.hotmart.com') !== -1) {
-              hrefObserver.observe(a, { attributes: true, attributeFilter: ['href'] });
-              if (needsTransform(href)) {
-                rewriting = true;
-                a.setAttribute('href', transformUrl(href));
-                rewriting = false;
-              }
-            }
-          });
-        });
-      });
-    });
-    docObserver.observe(document.documentElement, { childList: true, subtree: true });
-
-    // CAMADA 2: monkey-patch window.open (fallback para open_in_new_tab: true)
-    var _originalOpen = window.open;
-    window.open = function(url, target, features) {
-      if (typeof url === 'string' && url.indexOf('pay.hotmart.com') !== -1) {
-        url = transformUrl(url);
-      }
-      return _originalOpen.call(window, url, target, features);
-    };
-
-    // CAMADA 3: click capture — última chance de corrigir href antes da navegação
+    // CAMADA 1: click capture — bloqueia o click ANTES do Vturb processar,
+    // lê o href atual (com src do Vturb), transforma, e navega manualmente.
+    // stopImmediatePropagation impede que handleOpenLink do Vturb sobrescreva.
     document.addEventListener('click', function(e) {
       var a = e.target.closest ? e.target.closest('a[href]') : null;
       if (!a) return;
       var href = a.href || a.getAttribute('href');
-      if (needsTransform(href)) {
-        a.href = transformUrl(href);
+      if (!isHotmart(href)) return;
+
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
+      var finalUrl = transformUrl(href);
+      var target = a.getAttribute('target');
+
+      if (target === '_blank') {
+        window._sckOriginalOpen.call(window, finalUrl, '_blank');
+      } else {
+        window.location.href = finalUrl;
       }
     }, true);
+
+    // CAMADA 2: monkey-patch window.open (fallback para open_in_new_tab: true)
+    window._sckOriginalOpen = window.open;
+    window.open = function(url, target, features) {
+      if (isHotmart(url)) {
+        url = transformUrl(url);
+      }
+      return window._sckOriginalOpen.call(window, url, target, features);
+    };
   })();
   </script>
   <!-- VTurb Player Optimizer -->
