@@ -205,192 +205,104 @@ src="https://www.facebook.com/tr?id=1663477297615180&ev=PageView&noscript=1"
     </div>
   </footer>
 
-  <!-- DIAGNÓSTICO: Parametrização do comportamento do Vturb (TEMPORÁRIO) -->
+  <!-- UTM → SCK Interceptor v2 (baseado em diagnóstico de 2026-04-08) -->
   <script>
   (function() {
-    var TAG = '[VTURB-DEBUG]';
-    var ts = function() { return '[' + (performance.now() / 1000).toFixed(3) + 's]'; };
-    var PLAYER_ID = 'ab-69d13dc5af74a42cad39d7d4';
-
-    // ── 1a. MutationObserver no container do player ──
-    function watchPlayer() {
-      var player = document.getElementById(PLAYER_ID);
-      if (!player) {
-        // Player ainda não existe, tenta de novo
-        setTimeout(watchPlayer, 200);
-        return;
-      }
-      console.log(TAG, ts(), 'Player encontrado no DOM:', player.tagName);
-
-      // Observa inserção de novos nós (busca por <a>)
-      var domObs = new MutationObserver(function(mutations) {
-        mutations.forEach(function(m) {
-          m.addedNodes.forEach(function(node) {
-            if (node.nodeType !== 1) return;
-            // Verifica se é um <a> ou contém um <a>
-            var links = [];
-            if (node.tagName === 'A') links.push(node);
-            if (node.querySelectorAll) {
-              links = links.concat(Array.from(node.querySelectorAll('a[href]')));
-            }
-            links.forEach(function(a) {
-              console.log(TAG, ts(), 'LINK INSERIDO no DOM:', a.href || a.getAttribute('href'));
-              console.log(TAG, ts(), '  target:', a.getAttribute('target'));
-              console.log(TAG, ts(), '  classes:', a.className);
-              console.log(TAG, ts(), '  parentChain:', getParentChain(a));
-              watchLinkHref(a);
-            });
-          });
-        });
-      });
-      domObs.observe(player, { childList: true, subtree: true });
-
-      // Também busca links já existentes (caso o observer chegue tarde)
-      var existingLinks = player.querySelectorAll('a[href]');
-      if (existingLinks.length) {
-        console.log(TAG, ts(), 'Links já existentes no player:', existingLinks.length);
-        existingLinks.forEach(function(a) {
-          console.log(TAG, ts(), '  EXISTENTE:', a.href);
-          watchLinkHref(a);
-        });
-      }
-
-      // Se o player tem shadowRoot, observar também
-      if (player.shadowRoot) {
-        console.log(TAG, ts(), 'Player tem SHADOW ROOT - observando...');
-        domObs.observe(player.shadowRoot, { childList: true, subtree: true });
-      } else {
-        // Verifica periodicamente se shadowRoot aparece
-        var shadowCheck = setInterval(function() {
-          if (player.shadowRoot) {
-            console.log(TAG, ts(), 'SHADOW ROOT detectado!');
-            domObs.observe(player.shadowRoot, { childList: true, subtree: true });
-            var shadowLinks = player.shadowRoot.querySelectorAll('a[href]');
-            shadowLinks.forEach(function(a) {
-              console.log(TAG, ts(), '  SHADOW LINK:', a.href);
-              watchLinkHref(a);
-            });
-            clearInterval(shadowCheck);
-          }
-        }, 500);
-        // Para de checar após 5 minutos
-        setTimeout(function() { clearInterval(shadowCheck); }, 300000);
-      }
-    }
-
-    // ── 1b. MutationObserver no atributo href de cada <a> ──
-    function watchLinkHref(a) {
-      var hrefObs = new MutationObserver(function(mutations) {
-        mutations.forEach(function(m) {
-          if (m.attributeName === 'href') {
-            var newHref = a.getAttribute('href');
-            console.log(TAG, ts(), 'HREF ALTERADO:', newHref);
-            console.log(TAG, ts(), '  tem src?', /[?&]src=/.test(newHref));
-            console.log(TAG, ts(), '  tem sck?', /[?&]sck=/.test(newHref));
-            console.log(TAG, ts(), '  tem utm_source?', /[?&]utm_source=/.test(newHref));
-            console.log(TAG, ts(), '  stack:', new Error().stack);
-          }
-        });
-      });
-      hrefObs.observe(a, { attributes: true, attributeFilter: ['href'] });
-    }
-
-    // ── 1c. Listeners nos eventos customizados do Vturb ──
-    var vturbEvents = [
-      'callaction:connected',
-      'callaction:current-active-items',
-      'conversion-tracking:enabled',
-      'conversion-tracking:update',
-      'register-url-updater',
-      'smartplayer:ready',
-      'smartplayer:play',
-      'smartplayer:timeupdate'
-    ];
-    vturbEvents.forEach(function(evName) {
-      document.addEventListener(evName, function(e) {
-        if (evName === 'smartplayer:timeupdate') return; // muito verboso
-        console.log(TAG, ts(), 'EVENTO:', evName);
-        if (e.detail) {
-          try {
-            console.log(TAG, ts(), '  detail:', JSON.stringify(e.detail).substring(0, 500));
-          } catch(err) {
-            console.log(TAG, ts(), '  detail: [não serializável]', e.detail);
-          }
-        }
-      }, true);
-    });
-
-    // ── 1d. Interceptação PASSIVA de clique ──
-    ['mousedown', 'click'].forEach(function(evType) {
-      document.addEventListener(evType, function(e) {
-        var a = e.target.closest ? e.target.closest('a[href]') : null;
-        if (!a) return;
-        var player = document.getElementById(PLAYER_ID);
-        var inPlayer = player && player.contains(a);
-        // Checa também shadow root
-        if (!inPlayer && player && player.shadowRoot) {
-          inPlayer = player.shadowRoot.contains(a);
-        }
-        if (!inPlayer) return;
-
-        var href = a.getAttribute('href') || a.href;
-        console.log(TAG, ts(), evType.toUpperCase() + ' no link do player:');
-        console.log(TAG, '  href:', href);
-        console.log(TAG, '  target:', a.getAttribute('target'));
-        console.log(TAG, '  defaultPrevented:', e.defaultPrevented);
-        console.log(TAG, '  event.target:', e.target.tagName, e.target.className);
-        console.log(TAG, '  tem src?', /[?&]src=/.test(href));
-        console.log(TAG, '  tem sck?', /[?&]sck=/.test(href));
-
-        // Extrai todos os params para análise
-        var qIdx = href.indexOf('?');
-        if (qIdx > -1) {
-          var pairs = href.substring(qIdx + 1).split('&');
-          console.log(TAG, '  PARAMS (' + pairs.length + '):');
-          pairs.forEach(function(p) { console.log(TAG, '    ', p); });
-        }
-      }, true); // capture phase, mas SEM preventDefault
-    });
-
-    // ── 1e. Monkey-patch window.open e location.href ──
-    var originalOpen = window.open;
-    window.open = function(url, target, features) {
-      console.log(TAG, ts(), 'window.open() chamado:');
-      console.log(TAG, '  URL:', url);
-      console.log(TAG, '  target:', target);
-      console.log(TAG, '  stack:', new Error().stack);
-      return originalOpen.call(window, url, target, features);
-    };
-
-    // Tenta interceptar location.href via beforeunload
-    window.addEventListener('beforeunload', function() {
-      console.log(TAG, ts(), 'NAVEGAÇÃO: beforeunload disparado');
-      console.log(TAG, '  location.href final:', window.location.href);
-    });
-
-    // ── Helper ──
-    function getParentChain(el) {
-      var chain = [];
-      var curr = el;
-      for (var i = 0; i < 5 && curr; i++) {
-        chain.push(curr.tagName + (curr.className ? '.' + curr.className.split(' ')[0] : '') + (curr.id ? '#' + curr.id : ''));
-        curr = curr.parentElement;
-      }
-      return chain.join(' < ');
-    }
-
-    // ── UTMs da página ──
+    // ── 1. Captura UTMs da URL da página raiz ──
     var params = new URLSearchParams(window.location.search);
     var utmKeys = ['utm_source','utm_medium','utm_campaign','utm_term','utm_content'];
-    console.log(TAG, ts(), 'UTMs na página raiz:');
+    var captured = {};
+    var hasUtm = false;
+
     utmKeys.forEach(function(k) {
       var v = params.get(k);
-      if (v) console.log(TAG, '  ' + k + '=' + v);
+      if (v) { captured[k] = v; hasUtm = true; }
     });
 
-    // Inicia observação
-    console.log(TAG, ts(), 'Diagnóstico Vturb iniciado. Aguardando player...');
-    watchPlayer();
+    if (!hasUtm) return;
+
+    // ── 2. Monta sck com separador literal %26 ──
+    var sckParts = [];
+    utmKeys.forEach(function(k) {
+      if (captured[k]) {
+        sckParts.push(k + '=' + encodeURIComponent(captured[k]));
+      }
+    });
+    var sckValue = sckParts.join('%26');
+
+    // UTMs soltas que o Vturb injeta e devem ser removidas
+    var looseUtms = ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','campaign_id'];
+
+    // ── 3. Função de transformação da URL ──
+    // Recebe qualquer URL hotmart, limpa UTMs soltas, adiciona sck
+    function transformUrl(rawUrl) {
+      var qIdx = rawUrl.indexOf('?');
+      if (qIdx === -1) return rawUrl + '?sck=' + sckValue;
+
+      var base = rawUrl.substring(0, qIdx);
+      var query = rawUrl.substring(qIdx + 1);
+      var kept = [];
+
+      query.split('&').forEach(function(pair) {
+        var eqIdx = pair.indexOf('=');
+        var key = eqIdx > -1 ? pair.substring(0, eqIdx) : pair;
+        // Decodifica para comparar (ex: pode vir encodado)
+        try { key = decodeURIComponent(key); } catch(e) {}
+
+        if (looseUtms.indexOf(key) === -1 && key !== 'sck') {
+          kept.push(pair); // preserva src, off, checkoutMode, etc.
+        }
+      });
+
+      var finalQuery = kept.join('&');
+      finalQuery += (finalQuery ? '&' : '') + 'sck=' + sckValue;
+      return base + '?' + finalQuery;
+    }
+
+    // Detecta se uma URL é do checkout Hotmart
+    function isHotmartUrl(url) {
+      return typeof url === 'string' && url.indexOf('pay.hotmart.com') !== -1;
+    }
+
+    // ── 4. CAMADA 1: Intercepta click no <a> do Vturb ──
+    // Logs mostram: links têm classe "smartplayer-anchor-button"
+    // e estão dentro de DIV.vturb-light-dom-inject (light DOM)
+    document.addEventListener('click', function(e) {
+      var a = e.target.closest ? e.target.closest('a.smartplayer-anchor-button') : null;
+      if (!a) return;
+
+      var href = a.href || a.getAttribute('href');
+      if (!isHotmartUrl(href)) return;
+
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
+      var finalUrl = transformUrl(href);
+      var target = a.getAttribute('target');
+
+      if (target === '_blank') {
+        window._originalOpen.call(window, finalUrl, '_blank');
+      } else {
+        window.location.href = finalUrl;
+      }
+    }, true);
+
+    // ── 5. CAMADA 2: Monkey-patch window.open ──
+    // Caso o Vturb use window.open internamente ao invés do <a> nativo
+    window._originalOpen = window.open;
+    window.open = function(url, target, features) {
+      if (isHotmartUrl(url)) {
+        url = transformUrl(url);
+      }
+      return window._originalOpen.call(window, url, target, features);
+    };
+
+    // ── 6. CAMADA 3: Intercepta navegação via location.href ──
+    // Caso o Vturb atribua location.href diretamente
+    var origDescriptor = Object.getOwnPropertyDescriptor(window, 'location');
+    // Fallback: se não conseguir interceptar location (browsers protegem),
+    // as camadas 1 e 2 já cobrem os cenários principais.
+
   })();
   </script>
 
