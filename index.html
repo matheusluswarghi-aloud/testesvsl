@@ -205,5 +205,86 @@ src="https://www.facebook.com/tr?id=1663477297615180&ev=PageView&noscript=1"
     </div>
   </footer>
 
+  <!-- UTM → SCK Just-in-Time Interceptor -->
+  <script>
+  (function() {
+    // 1. Captura UTMs da URL da página raiz
+    var params = new URLSearchParams(window.location.search);
+    var utmKeys = ['utm_source','utm_medium','utm_campaign','utm_term','utm_content'];
+    var captured = {};
+    var hasUtm = false;
+
+    utmKeys.forEach(function(k) {
+      var v = params.get(k);
+      if (v) { captured[k] = v; hasUtm = true; }
+    });
+
+    if (!hasUtm) return; // Nenhuma UTM na página, nada a fazer
+
+    // 2. Monta o valor do sck com separador literal %26
+    //    Ex: utm_source=facebook%26utm_medium=cpc%26...
+    var sckParts = [];
+    utmKeys.forEach(function(k) {
+      if (captured[k]) {
+        sckParts.push(k + '=' + encodeURIComponent(captured[k]));
+      }
+    });
+    var sckValue = sckParts.join('%26'); // literal %26, NÃO &
+
+    // 3. Parâmetros UTM soltos que o Vturb injeta e devem ser removidos
+    var looseUtms = ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','campaign_id'];
+
+    // 4. Intercepta clique no botão CTA do Vturb
+    document.addEventListener('mousedown', function(e) {
+      var link = e.target.closest('a[href]');
+      if (!link) return;
+
+      // Filtra apenas links do Vturb (dentro do player ou com classe típica)
+      var player = document.getElementById('ab-69d3ef6b8a800605e3888512');
+      if (!player || !player.contains(link)) return;
+
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
+      var href = link.getAttribute('href') || link.href;
+
+      // Separa base e query
+      var parts = href.split('?');
+      var base = parts[0];
+      var query = parts[1] || '';
+
+      // Parseia os parâmetros existentes preservando a ordem
+      var existing = [];
+      if (query) {
+        query.split('&').forEach(function(pair) {
+          var eqIdx = pair.indexOf('=');
+          var key = eqIdx > -1 ? decodeURIComponent(pair.substring(0, eqIdx)) : decodeURIComponent(pair);
+          var val = eqIdx > -1 ? pair.substring(eqIdx + 1) : '';
+
+          // Remove UTMs soltas e sck antigo
+          if (looseUtms.indexOf(key) === -1 && key !== 'sck') {
+            existing.push(pair); // mantém o par original intacto (preserva src do Vturb, off, checkoutMode, etc.)
+          }
+        });
+      }
+
+      // Reconstrói a URL: parâmetros preservados + sck formatado
+      var finalQuery = existing.join('&');
+      // Adiciona sck usando concatenação de string pura para evitar re-encoding
+      finalQuery += (finalQuery ? '&' : '') + 'sck=' + sckValue;
+
+      var finalUrl = base + '?' + finalQuery;
+
+      // Redireciona respeitando o target original
+      var target = link.getAttribute('target');
+      if (target === '_blank') {
+        window.open(finalUrl, '_blank');
+      } else {
+        window.location.href = finalUrl;
+      }
+    }, true); // useCapture = true para interceptar antes de qualquer outro handler
+  })();
+  </script>
+
 </body>
 </html>
