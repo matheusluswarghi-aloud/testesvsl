@@ -2,3 +2,23 @@
 *.txt
 *.save
 *.log
+
+# Secrets / Env (added)
+.env
+.env.*
+!.env.example
+credentials*.json
+service-account*.json
+client_secret*.json
+
+# Data files (PII risk — keep local)
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.parquet
+*.feather
+*.pkl
+*.sqlite
+*.db
+
